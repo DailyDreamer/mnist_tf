@@ -38,22 +38,22 @@ def main(_):
 
   # build the graph
   with tf.name_scope('hidden1'):
-    weights = weight_variable([IMAGE_PIXELS, FLAGS.hidden1], 
+    W_hidden1 = weight_variable([IMAGE_PIXELS, FLAGS.hidden1], 
                               stddev=1.0/math.sqrt(float(IMAGE_PIXELS)))
-    biases = bias_variable([FLAGS.hidden1])
-    hidden1 = tf.nn.sigmoid(tf.matmul(images_placeholder, weights) + biases)
+    b_hidden1 = bias_variable([FLAGS.hidden1])
+    hidden1 = tf.nn.sigmoid(tf.matmul(images_placeholder, W_hidden1) + b_hidden1)
 
   with tf.name_scope('hidden2'):
-    weights = weight_variable([FLAGS.hidden1, FLAGS.hidden2], 
+    W_hidden2 = weight_variable([FLAGS.hidden1, FLAGS.hidden2], 
                               stddev=1.0/math.sqrt(float(FLAGS.hidden1)))    
-    biases = bias_variable([FLAGS.hidden2])
-    hidden2 = tf.nn.sigmoid(tf.matmul(hidden1, weights) + biases)
+    b_hidden2 = bias_variable([FLAGS.hidden2])
+    hidden2 = tf.nn.sigmoid(tf.matmul(hidden1, W_hidden2) + b_hidden2)
 
   with tf.name_scope('softmax'):
-    weights = weight_variable([FLAGS.hidden2, NUM_CLASSES], 
+    W_softmax = weight_variable([FLAGS.hidden2, NUM_CLASSES], 
                               stddev=1.0/math.sqrt(float(FLAGS.hidden2)))    
-    biases = bias_variable([NUM_CLASSES])
-    logits_op = tf.matmul(hidden2, weights) + biases
+    b_softmax = bias_variable([NUM_CLASSES])
+    logits_op = tf.matmul(hidden2, W_softmax) + b_softmax
     # tf.nn.softmax_cross_entropy_with_logits will compute softmax internal
     # but we need to add softmax when evaluation
 

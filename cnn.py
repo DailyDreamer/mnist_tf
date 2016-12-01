@@ -12,14 +12,15 @@ TIME=datetime.now().strftime("%Y%m%d-%H%M%S")
 flags = tf.app.flags
 flags.DEFINE_string('train_dir', './mnist', 'Directory to put the training data.')
 flags.DEFINE_string('summary_dir', './summary/cnn/'+TIME, 'Directory to put the summary data.')
+# 0.1 for GradientDescentOptimizer
+# flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
+# 0.001 for AdamOptimizer
 flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate.')
-flags.DEFINE_integer('num_epochs', 100, 'Number of epochs to run trainer.')
-flags.DEFINE_integer('hidden1', 32, 'Number of feature maps in hidden layer 1.')
+flags.DEFINE_integer('num_epochs', 50, 'Number of epochs to run trainer.')
+flags.DEFINE_integer('hidden1', 12, 'Number of feature maps in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 64, 'Number of feature maps in hidden layer 2.')
-flags.DEFINE_integer('fc1', 1024, 'Number of units in full connected layer 1.')
-flags.DEFINE_integer('batch_size', 50, 'Batch size.')
+flags.DEFINE_integer('batch_size', 100, 'Batch size.')
 FLAGS = flags.FLAGS
-
 
 def weight_variable(shape):
   initial = tf.truncated_normal(shape=shape, stddev=0.1, name='weights')
@@ -32,8 +33,8 @@ def bias_variable(shape):
 def conv2d(x, W):
   return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-def max_pool_2x2(x):
-  return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+def pool_2x2(x):
+  return tf.nn.avg_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
 def main(_):
   # get mnist data
@@ -43,6 +44,8 @@ def main(_):
 
   images_placeholder = tf.placeholder(tf.float32, shape=[None, IMAGE_PIXELS])
   labels_placeholder = tf.placeholder(tf.float32, shape=[None, NUM_CLASSES])
+  keep_prob = tf.placeholder(tf.float32)
+
   # build the graph
   with tf.name_scope('hidden1'):
     W_conv1 = weight_variable([5, 5, COLOR_CHANNEL, FLAGS.hidden1])
@@ -50,33 +53,28 @@ def main(_):
 
     x_image = tf.reshape(images_placeholder, [-1,IMAGE_SIZE,IMAGE_SIZE, COLOR_CHANNEL])
     h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
+    h_pool1 = pool_2x2(h_conv1)
+
+  with tf.name_scope('dropout1'):  
+    h_pool1_drop = tf.nn.dropout(h_pool1, keep_prob)
 
   with tf.name_scope('hidden2'):
     W_conv2 = weight_variable([5, 5, FLAGS.hidden1, FLAGS.hidden2])
     b_conv2 = bias_variable([FLAGS.hidden2])
 
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+    h_conv2 = tf.nn.relu(conv2d(h_pool1_drop, W_conv2) + b_conv2)
+    h_pool2 = pool_2x2(h_conv2)
 
-  with tf.name_scope('full_connected1'):
+  with tf.name_scope('dropout2'):  
+    h_pool2_drop = tf.nn.dropout(h_pool2, keep_prob)
+
+  with tf.name_scope('full_connected'):
     num_fc = IMAGE_SIZE//4 * IMAGE_SIZE//4 * FLAGS.hidden2
-    W_fc1 = weight_variable([num_fc, FLAGS.fc1])
-    b_fc1 = bias_variable([FLAGS.fc1])
+    W_fc1 = weight_variable([num_fc, NUM_CLASSES])
+    b_fc1 = bias_variable([NUM_CLASSES])
 
-    h_pool2_flat = tf.reshape(h_pool2, [-1, num_fc])
-    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
-
-  with tf.name_scope('dropout'):  
-    keep_prob = tf.placeholder(tf.float32)
-    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
-
-
-  with tf.name_scope('full_connected2'):
-    W_fc2 = weight_variable([FLAGS.fc1, NUM_CLASSES])
-    b_fc2 = bias_variable([NUM_CLASSES])
-
-    logits_op = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+    h_pool2_flat = tf.reshape(h_pool2_drop, [-1, num_fc])
+    logits_op = tf.matmul(h_pool2_flat, W_fc1) + b_fc1
     # tf.nn.softmax_cross_entropy_with_logits will compute softmax internal
     # but we need to add softmax when evaluation
 
@@ -86,7 +84,8 @@ def main(_):
     tf.scalar_summary(loss_op.op.name, loss_op)    
 
   with tf.name_scope('train'):
-    optimizer = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
+    #optimizer = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
+    optimizer = tf.train.AdamOptimizer(FLAGS.learning_rate)
     global_step = tf.Variable(0, name='global_step', trainable=False)
     train_op = optimizer.minimize(loss_op, global_step=global_step)
 
