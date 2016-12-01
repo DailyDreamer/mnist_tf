@@ -12,7 +12,7 @@ flags = tf.app.flags
 flags.DEFINE_string('train_dir', './mnist', 'Directory to put the training data.')
 flags.DEFINE_string('summary_dir', './summary/snn/'+TIME, 'Directory to put the summary data.')
 flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
-flags.DEFINE_integer('num_epochs', 5, 'Number of epochs to run trainer.')
+flags.DEFINE_integer('num_epochs', 30, 'Number of epochs to run trainer.')
 flags.DEFINE_integer('hidden1', 64, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 128, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('batch_size', 128, 'Batch size.')
@@ -88,19 +88,14 @@ def main(_):
 
   with tf.name_scope('SNN_evaluation'):
     # init variables
-    shape_input = [1, IMAGE_PIXELS]
-    shape_hidden1 = [1, FLAGS.hidden1]
+    shape_input = [mnist_data.test.num_examples, IMAGE_PIXELS]
+    shape_hidden1 = [mnist_data.test.num_examples, FLAGS.hidden1]
     V_pre_hidden1 = tf.Variable(tf.constant(FLAGS.V_min, tf.float32, shape_hidden1))
-    shape_hidden2 = [1, FLAGS.hidden2]
+    shape_hidden2 = [mnist_data.test.num_examples, FLAGS.hidden2]
     V_pre_hidden2 = tf.Variable(tf.constant(FLAGS.V_min, tf.float32, shape_hidden2))
-    shape_softmax = [1, NUM_CLASSES]
+    shape_softmax = [mnist_data.test.num_examples, NUM_CLASSES]
     V_pre_softmax = tf.Variable(tf.constant(FLAGS.V_min, tf.float32, shape_softmax))
     spike_count = tf.Variable(tf.zeros(shape_softmax))
-
-    init_V_pre_hidden1 = V_pre_hidden1.assign(tf.constant(FLAGS.V_min, tf.float32, shape_hidden1))
-    init_V_pre_hidden2 = V_pre_hidden2.assign(tf.constant(FLAGS.V_min, tf.float32, shape_hidden2))
-    init_V_pre_softmax = V_pre_softmax.assign(tf.constant(FLAGS.V_min, tf.float32, shape_softmax))
-    init_spike_count = spike_count.assign(tf.zeros(shape_softmax))
 
     #spike generation
     cond = tf.greater(images_placeholder, tf.random_uniform(shape_input))  
@@ -121,7 +116,7 @@ def main(_):
     # spike counter
     spike_count = spike_count.assign_add(spike_softmax)    
 
-    # evaluate a period of time accuracy
+    # evaluate total simulate time accuracy
     num_correct_snn = tf.equal(tf.argmax(spike_count, 1), tf.argmax(labels_placeholder, 1))
     accuracy_op_snn = tf.reduce_mean(tf.cast(num_correct_snn, tf.float32))
 
@@ -132,6 +127,10 @@ def main(_):
   with tf.Session() as sess:
     sess.run(init_op)
     # start training
+    test_feed = {
+      images_placeholder: mnist_data.test.images, 
+      labels_placeholder: mnist_data.test.labels
+    }
     num_batches = mnist_data.train.num_examples // FLAGS.batch_size
     for i in range(FLAGS.num_epochs * num_batches):
       x, y = mnist_data.train.next_batch(FLAGS.batch_size)
@@ -139,24 +138,15 @@ def main(_):
       summary, _ = sess.run([summary_op, train_op], feed_dict=train_feed)
       summary_writer.add_summary(summary, i)      
       if i % num_batches == 0:
-        test_feed = {
-          images_placeholder: mnist_data.test.images, 
-          labels_placeholder: mnist_data.test.labels
-        }
         summary, accuracy = sess.run([summary_op, accuracy_op], feed_dict=test_feed)
         print('Accuracy at epoch %s: %s' % (i // num_batches, accuracy))
     
-    ## tune MLP to SNN to evaluate
-    correct_sum = 0
-    for i in range(mnist_data.test.num_examples):
-      sess.run([init_V_pre_hidden1, init_V_pre_hidden2, init_V_pre_softmax, init_spike_count])
-      x, y = mnist_data.train.next_batch(1)
-      snn_feed = { images_placeholder: x, labels_placeholder: y }
-      for _ in range(100):
-        sess.run(spike_count, feed_dict=snn_feed)
-      correct = sess.run(accuracy_op_snn, feed_dict=snn_feed)
-      correct_sum += correct
-    print('Accuracy at SNN : %s' % (correct_sum/mnist_data.test.num_examples)) 
+    # tune MLP to SNN to evaluate
+    # set total simulate to 100 ms
+    for _ in range(100):
+      sess.run(spike_count, feed_dict=test_feed)
+    accuracy = sess.run(accuracy_op_snn, feed_dict=test_feed)
+    print('Accuracy at SNN : %s' % (accuracy)) 
 
   summary_writer.close()
   
