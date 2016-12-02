@@ -54,19 +54,19 @@ def main(_):
     W_hidden1 = weight_variable([IMAGE_PIXELS, FLAGS.hidden1], 
                               stddev=1.0/math.sqrt(float(IMAGE_PIXELS)))
     b_hidden1 = bias_variable([FLAGS.hidden1])
-    hidden1 = tf.nn.relu(tf.matmul(images_placeholder, W_hidden1) + b_hidden1)
+    hidden1 = tf.nn.relu(tf.matmul(images_placeholder, W_hidden1))
 
   with tf.name_scope('hidden2'):
     W_hidden2 = weight_variable([FLAGS.hidden1, FLAGS.hidden2], 
                               stddev=1.0/math.sqrt(float(FLAGS.hidden1)))    
     b_hidden2 = bias_variable([FLAGS.hidden2])
-    hidden2 = tf.nn.relu(tf.matmul(hidden1, W_hidden2) + b_hidden2)
+    hidden2 = tf.nn.relu(tf.matmul(hidden1, W_hidden2))
 
   with tf.name_scope('softmax'):
     W_softmax = weight_variable([FLAGS.hidden2, NUM_CLASSES], 
                               stddev=1.0/math.sqrt(float(FLAGS.hidden2)))    
     b_softmax = bias_variable([NUM_CLASSES])
-    logits_op = tf.matmul(hidden2, W_softmax) + b_softmax
+    logits_op = tf.matmul(hidden2, W_softmax)
     # tf.nn.softmax_cross_entropy_with_logits will compute softmax internal
     # but we need to add softmax when evaluation
 
